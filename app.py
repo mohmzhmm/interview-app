@@ -117,15 +117,16 @@ def translate():
             "max_tokens": 400,
             "messages": [{
                 "role": "user",
-                "content": f"""You are helping someone in a job interview. The interviewer said: "{text}"
+                "content": f"""You are a translator and interview coach. The interviewer said: "{text}"
 
-Do two things:
-1. Translate the sentence naturally to Arabic (not word by word, make it sound natural)
-2. Write a short simple answer in English the person can say (max 2 sentences, easy words)
+Rules:
+- Always translate, even if the sentence is incomplete or unclear. Never add notes or comments.
+- Translation must be natural Arabic, not word by word.
+- The reply must use simple easy English words, max 2 short sentences.
 
-Reply in this exact format:
-TRANSLATION: [Arabic translation here]
-REPLY: [English answer here]"""
+Reply in this EXACT format only, nothing else:
+TRANSLATION: [Arabic translation]
+REPLY: [English reply]"""
             }]
         }).encode('utf-8')
 
