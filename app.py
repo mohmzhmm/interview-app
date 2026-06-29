@@ -108,28 +108,27 @@ def index():
 def translate():
     text = request.json.get('text', '')
 
-    # Google Translate
-    try:
-        url = f"https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=ar&dt=t&q={urllib.parse.quote(text)}"
-        req = urllib.request.urlopen(url, timeout=5)
-        tdata = json.loads(req.read())
-        translation = ''.join([x[0] for x in tdata[0] if x[0]])
-    except:
-        translation = text
-
-    # Claude suggestion
+    translation = ''
     suggestion = ''
+
     try:
         payload = json.dumps({
             "model": "claude-sonnet-4-6",
-            "max_tokens": 150,
+            "max_tokens": 400,
             "messages": [{
                 "role": "user",
                 "content": f"""You are helping someone in a job interview. The interviewer said: "{text}"
-Write a short and simple answer in English. Use easy common words. Maximum 2 sentences. No complex vocabulary.
-Reply with ONLY the answer, nothing else."""
+
+Do two things:
+1. Translate the sentence naturally to Arabic (not word by word, make it sound natural)
+2. Write a short simple answer in English the person can say (max 2 sentences, easy words)
+
+Reply in this exact format:
+TRANSLATION: [Arabic translation here]
+REPLY: [English answer here]"""
             }]
         }).encode('utf-8')
+
         req = urllib.request.Request(
             'https://api.anthropic.com/v1/messages',
             data=payload,
@@ -139,10 +138,18 @@ Reply with ONLY the answer, nothing else."""
                 'anthropic-version': '2023-06-01'
             }
         )
-        resp = urllib.request.urlopen(req, timeout=10)
+        resp = urllib.request.urlopen(req, timeout=15)
         rdata = json.loads(resp.read())
-        suggestion = rdata['content'][0]['text'].strip()
-    except:
+        raw = rdata['content'][0]['text'].strip()
+
+        import re
+        t = re.search(r'TRANSLATION:\s*(.+?)(?:\nREPLY:|$)', raw, re.DOTALL)
+        r = re.search(r'REPLY:\s*(.+)', raw, re.DOTALL)
+        translation = t.group(1).strip() if t else raw
+        suggestion = r.group(1).strip() if r else ''
+
+    except Exception as e:
+        translation = text
         suggestion = ''
 
     return jsonify({'translation': translation, 'suggestion': suggestion})
