@@ -49,6 +49,7 @@ button:hover { background: #252525; }
 <div class="controls">
   <button id="micBtn" onclick="toggleMic()"><span class="dot" id="indicator"></span><span id="micLabel">ابدأ الاستماع</span></button>
   <button onclick="clearAll()" style="padding:10px 14px;">🗑 مسح</button>
+  <button onclick="restartMic()" id="refreshBtn" style="padding:10px 14px;display:none;">🔄 تجديد</button>
   <span class="status" id="statusText">اضغط لبدء الاستماع</span>
 </div>
 <div class="error" id="errorBox"></div>
@@ -66,19 +67,51 @@ button:hover { background: #252525; }
   <div id="historyList"></div>
 </div>
 <script>
-let recognition=null,isRecording=false,translating=false,lastTranslated='';
+let recognition=null,isRecording=false,translating=false,lastTranslated='',watchdog=null;
 const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 function showError(msg){const b=document.getElementById('errorBox');b.textContent=msg;b.style.display='block';setTimeout(()=>b.style.display='none',6000);}
 function toggleMic(){if(!SR){showError('استخدم Chrome');return;}isRecording?stopMic():startMic();}
 function startMic(){
   recognition=new SR();recognition.lang='en-US';recognition.continuous=true;recognition.interimResults=true;
-  recognition.onstart=()=>{isRecording=true;document.getElementById('micBtn').classList.add('recording');document.getElementById('indicator').className='pulse';document.getElementById('micLabel').textContent='جارٍ الاستماع...';document.getElementById('badge').textContent='نشط';document.getElementById('badge').className='badge active';document.getElementById('statusText').textContent='يستمع الآن';};
-  recognition.onresult=(e)=>{let final='',interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;e.results[i].isFinal?final+=t:interim+=t;}const txt=final||interim;if(txt){document.getElementById('englishText').textContent=txt;if(final&&final.trim().length>3&&final.trim()!==lastTranslated){lastTranslated=final.trim();translateText(final.trim());}}};
+  recognition.onstart=()=>{isRecording=true;document.getElementById('micBtn').classList.add('recording');document.getElementById('indicator').className='pulse';document.getElementById('micLabel').textContent='جارٍ الاستماع...';document.getElementById('badge').textContent='نشط';document.getElementById('badge').className='badge active';document.getElementById('statusText').textContent='يستمع الآن';document.getElementById('refreshBtn').style.display='flex';
+    startWatchdog();}; 
+  recognition.onresult=handleResult;
   recognition.onerror=(e)=>{if(e.error==='no-speech')return;showError('خطأ: '+e.error);stopMic();};
   recognition.onend=()=>{if(isRecording)recognition.start();};
   recognition.start();
 }
-function stopMic(){isRecording=false;if(recognition){recognition.onend=null;recognition.stop();}document.getElementById('micBtn').classList.remove('recording');document.getElementById('indicator').className='dot';document.getElementById('micLabel').textContent='ابدأ الاستماع';document.getElementById('badge').textContent='غير نشط';document.getElementById('badge').className='badge';document.getElementById('statusText').textContent='اضغط لبدء الاستماع';}
+function startWatchdog(){
+  if(watchdog) clearInterval(watchdog);
+  watchdog=setInterval(()=>{
+    if(!isRecording) return;
+    try{
+      if(recognition && recognition.readyState==='ended'){
+        recognition.start();
+      }
+    } catch(e){
+      try{ recognition.stop(); } catch(e2){}
+      setTimeout(()=>{
+        if(isRecording){ recognition.start(); }
+      },500);
+    }
+  },3000);
+}
+function stopWatchdog(){ if(watchdog){ clearInterval(watchdog); watchdog=null; } }
+function restartMic(){
+  if(!isRecording) return;
+  if(recognition){recognition.onend=null;recognition.stop();}
+  setTimeout(()=>{
+    recognition=new SR();recognition.lang='en-US';recognition.continuous=true;recognition.interimResults=true;
+    recognition.onstart=()=>{document.getElementById('statusText').textContent='يستمع الآن';document.getElementById('refreshBtn').style.display='flex';
+    startWatchdog();}; 
+    recognition.onresult=handleResult;
+    recognition.onerror=(e)=>{if(e.error==='no-speech')return;};
+    recognition.onend=()=>{if(isRecording)recognition.start();};
+    recognition.start();
+  },300);
+}
+function handleResult(e){let final='',interim='';for(let i=e.resultIndex;i<e.results.length;i++){const t=e.results[i][0].transcript;e.results[i].isFinal?final+=t:interim+=t;}const txt=final||interim;if(txt){document.getElementById('englishText').textContent=txt;if(final&&final.trim().length>3&&final.trim()!==lastTranslated){lastTranslated=final.trim();translateText(final.trim());}}}
+function stopMic(){isRecording=false;if(recognition){recognition.onend=null;recognition.stop();}document.getElementById('micBtn').classList.remove('recording');document.getElementById('indicator').className='dot';document.getElementById('micLabel').textContent='ابدأ الاستماع';document.getElementById('badge').textContent='غير نشط';document.getElementById('badge').className='badge';document.getElementById('statusText').textContent='اضغط لبدء الاستماع';document.getElementById('refreshBtn').style.display='none';stopWatchdog();}
 async function translateText(text){
   if(translating)return;translating=true;
   document.getElementById('arabicText').innerHTML='<span class="placeholder">جارٍ الترجمة...</span>';
