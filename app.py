@@ -121,7 +121,10 @@ async function translateText(text){
     const data=await resp.json();
     document.getElementById('arabicText').textContent=data.translation;
     let extra='';
-    if(data.suggestion) extra+=`<div class="suggest-label">رد مقترح بالإنجليزية</div><div class="suggest-text">${data.suggestion}</div>`;
+    if(data.suggestion){
+      extra+=`<div class="suggest-label">رد مقترح بالإنجليزية</div><div class="suggest-text">${data.suggestion}</div>`;
+      if(data.suggestion_ar) extra+=`<div class="suggest-label">معنى الرد بالعربية</div><div class="suggest-text" style="direction:rtl;text-align:right;font-size:15px;color:#94a3b8">${data.suggestion_ar}</div>`;
+    }
     document.getElementById('suggestArea').innerHTML=extra;
     addHistory(text,data.translation);
   }catch(err){document.getElementById('arabicText').innerHTML='<span style="color:#f87171">تعذّرت الترجمة</span>';}
@@ -159,7 +162,8 @@ Rules:
 
 Reply in this EXACT format only, nothing else:
 TRANSLATION: [Arabic translation]
-REPLY: [English reply]"""
+REPLY: [English reply]
+REPLY_AR: [Arabic translation of the reply]"""
             }]
         }).encode('utf-8')
 
@@ -178,15 +182,17 @@ REPLY: [English reply]"""
 
         import re
         t = re.search(r'TRANSLATION:\s*(.+?)(?:\nREPLY:|$)', raw, re.DOTALL)
-        r = re.search(r'REPLY:\s*(.+)', raw, re.DOTALL)
+        r = re.search(r'REPLY:\s*(.+?)(?:\nREPLY_AR:|$)', raw, re.DOTALL)
+        ra = re.search(r'REPLY_AR:\s*(.+)', raw, re.DOTALL)
         translation = t.group(1).strip() if t else raw
         suggestion = r.group(1).strip() if r else ''
+        suggestion_ar = ra.group(1).strip() if ra else ''
 
     except Exception as e:
         translation = text
         suggestion = ''
 
-    return jsonify({'translation': translation, 'suggestion': suggestion})
+    return jsonify({'translation': translation, 'suggestion': suggestion, 'suggestion_ar': suggestion_ar})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5000)))
